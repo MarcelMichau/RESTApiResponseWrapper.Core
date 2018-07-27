@@ -12,10 +12,12 @@ namespace VMD.RESTApiResponseWrapper.Core
     public class APIResponseMiddleware
     {
         private readonly RequestDelegate _next;
+        private readonly JsonSerializerSettings _settings;
 
-        public APIResponseMiddleware(RequestDelegate next)
+        public APIResponseMiddleware(RequestDelegate next, JsonSerializerSettings settings)
         {
             _next = next;
+            _settings = settings;
         }
 
         public async Task Invoke(HttpContext context)
@@ -37,17 +39,17 @@ namespace VMD.RESTApiResponseWrapper.Core
                         if (context.Response.StatusCode == (int)HttpStatusCode.OK)
                         {
                             var body = await FormatResponse(context.Response);
-                            await HandleSuccessRequestAsync(context, body, context.Response.StatusCode);
+                            await HandleSuccessRequestAsync(context, body, context.Response.StatusCode, _settings);
 
                         }
                         else
                         {
-                            await HandleNotSuccessRequestAsync(context, context.Response.StatusCode);
+                            await HandleNotSuccessRequestAsync(context, context.Response.StatusCode, _settings);
                         }
                     }
                     catch (System.Exception ex)
                     {
-                        await HandleExceptionAsync(context, ex);
+                        await HandleExceptionAsync(context, ex, _settings);
                     }
                     finally
                     {
@@ -59,7 +61,7 @@ namespace VMD.RESTApiResponseWrapper.Core
 
         }
 
-        private static Task HandleExceptionAsync(HttpContext context, System.Exception exception)
+        private static Task HandleExceptionAsync(HttpContext context, System.Exception exception, JsonSerializerSettings settings)
         {
             ApiError apiError = null;
             APIResponse apiResponse = null;
@@ -102,12 +104,12 @@ namespace VMD.RESTApiResponseWrapper.Core
 
             apiResponse = new APIResponse(code, ResponseMessageEnum.Exception.GetDescription(), null, apiError);
 
-            var json = JsonConvert.SerializeObject(apiResponse);
+            var json = JsonConvert.SerializeObject(apiResponse, settings);
 
             return context.Response.WriteAsync(json);
         }
 
-        private static Task HandleNotSuccessRequestAsync(HttpContext context, int code)
+        private static Task HandleNotSuccessRequestAsync(HttpContext context, int code, JsonSerializerSettings settings)
         {
             context.Response.ContentType = "application/json";
 
@@ -129,7 +131,7 @@ namespace VMD.RESTApiResponseWrapper.Core
             return context.Response.WriteAsync(json);
         }
 
-        private static Task HandleSuccessRequestAsync(HttpContext context, object body, int code)
+        private static Task HandleSuccessRequestAsync(HttpContext context, object body, int code, JsonSerializerSettings settings)
         {
             context.Response.ContentType = "application/json";
             string jsonString, bodyText = string.Empty;
@@ -137,7 +139,7 @@ namespace VMD.RESTApiResponseWrapper.Core
 
 
             if (!body.ToString().IsValidJson())
-                bodyText = JsonConvert.SerializeObject(body);
+                bodyText = JsonConvert.SerializeObject(body, settings);
             else
                 bodyText = body.ToString();
 
@@ -150,19 +152,19 @@ namespace VMD.RESTApiResponseWrapper.Core
             {
                 apiResponse = JsonConvert.DeserializeObject<APIResponse>(bodyText);
                 if (apiResponse.StatusCode != code)
-                    jsonString = JsonConvert.SerializeObject(apiResponse);
+                    jsonString = JsonConvert.SerializeObject(apiResponse, settings);
                 else if (apiResponse.Result != null)
-                    jsonString = JsonConvert.SerializeObject(apiResponse);
+                    jsonString = JsonConvert.SerializeObject(apiResponse, settings);
                 else
                 {
                     apiResponse = new APIResponse(code, ResponseMessageEnum.Success.GetDescription(), bodyContent, null);
-                    jsonString = JsonConvert.SerializeObject(apiResponse);
+                    jsonString = JsonConvert.SerializeObject(apiResponse, settings);
                 }
             }
             else
             {
                 apiResponse = new APIResponse(code, ResponseMessageEnum.Success.GetDescription(), bodyContent, null);
-                jsonString = JsonConvert.SerializeObject(apiResponse);
+                jsonString = JsonConvert.SerializeObject(apiResponse, settings);
             }
 
             return context.Response.WriteAsync(jsonString);
