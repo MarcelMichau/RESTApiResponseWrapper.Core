@@ -14,10 +14,10 @@ namespace VMD.RESTApiResponseWrapper.Core
         private readonly RequestDelegate _next;
         private readonly JsonSerializerSettings _settings;
 
-        public APIResponseMiddleware(RequestDelegate next, JsonSerializerSettings settings)
+        public APIResponseMiddleware(RequestDelegate next, IOptions<JsonSerializerSettings> options)
         {
             _next = next;
-            _settings = settings;
+            _settings = options.Value ?? new JsonSerializerSettings();
         }
 
         public async Task Invoke(HttpContext context)
